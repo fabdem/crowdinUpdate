@@ -1,0 +1,19 @@
+{
+"data": [
+    {
+	  "apiurl": "https://adomain.crowdin.com/api/v2/",
+      "key": "//project2/project2_english.txt",
+      "projectId": 5,
+      "authToken": "555555555555555",
+      "destination": "/A folder in your crowdin project/folder/afile.vdf",
+	    "extension": ".vdf"
+    },
+    {
+	  "apiurl": "https://adomain.crowdin.com/api/v2/",
+      "key": "Some other sort of key",
+      "projectId": 4,
+      "authToken": "6666666666666666666666",
+      "destination": "/Another folder in your crowdin project/folder2/anotherfile.txt"
+    }
+]
+}
