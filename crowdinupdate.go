@@ -84,7 +84,7 @@ var finishChan chan struct{}
 const defaultApiURL = "https://crowdin.com/api/v2/"
 
 // Spinning wheel
-func animation(c *crowdin.Crowdin) {
+func animation() {
 	sequence := [...]string{"|", "/", "-", "\\"}
 
 	for {
@@ -92,7 +92,6 @@ func animation(c *crowdin.Crowdin) {
 		default:
 			str := fmt.Sprintf("%s", sequence[idx])
 			fmt.Printf("%s%s", str, strings.Repeat("\b", len(str)))
-			// fmt.Printf("%s %d", sequence[idx], c.GetProjectId2())
 			idx = (idx + 1) % len(sequence)
 			amt := time.Duration(100)
 			time.Sleep(time.Millisecond * amt)
@@ -174,8 +173,8 @@ func main() {
 		os.Exit(1)
 	}
 	f.Close()
-	
-	var list []FileAccess // Build a list of files to process, either from json or from command line params
+
+	var list []config.FileAccess // Build a list of files to process, either from json or from command line params
 
 	if conf != "" { // A json file is provided
 		p4File := os.Args[index-2]
@@ -201,21 +200,20 @@ func main() {
 
 		// Path and name of file to update in Crowdin. Stored in a slice.
 		cf := os.Args[index-2]
-		
-		if len(uRL) <= 0 {uRL = defaultApiURL)}
-		var f FileAccess {ProjectId:id, AuthToken:tk, Apiurl: uRL, Destination: cf}
+
+		if len(uRL) <= 0 {uRL = defaultApiURL}
+		f := config.FileAccess{ProjectId:id, AuthToken:tk, Apiurl: uRL, Destination: cf}
 		list = append(list, f)
 	}
 
-
 	if !nospinFlg { // Check if we need to spin the '|'
 		finishChan = make(chan struct{})
-		go animation(api)
+		go animation()
 	}
 
-	var logFile *File
+	var logFile *os.File
 	if len(debug) > 0 { // append or create debug
-		logFile, err := os.OpenFile(debug, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		logFile, err = os.OpenFile(debug, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - Can't create debug file %s %v", debug, err)
 			os.Exit(1)
@@ -229,9 +227,9 @@ func main() {
 		token 		= l.AuthToken
 		crowdinFile = l.Destination
 		ext 		= l.Extension
-	
+
 		newName := changeNameExt(localFile, ext) // Change the filename extension if needed
-	
+
 		if newName != localFile { // If file names differ then create a copy with newname
 			// fmt.Printf("Copying %s to %s", localFile, newName)
 			if copyFile(localFile, newName) != nil {
@@ -248,7 +246,7 @@ func main() {
 			fmt.Printf("\ncrowdinupdate() - connection problem %s\n", err)
 			os.Exit(1)
 		}
-	
+
 		if len(debug) > 0 { // append or create debug
 			api.SetDebug(true, logFile)
 		}
@@ -259,21 +257,21 @@ func main() {
 			fmt.Printf("\ncrowdinupdate() - update error %s\n\n", err)
 			os.Exit(1)
 		}
-	
+
 		// Get revision details
 		revisions, err := api.ListFileRevisions(&crowdin.ListFileRevisionsOptions{Limit: 500}, fileId)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - Read revision details error %s\n\n", err)
 			os.Exit(1)
 		}
-	
+
 		r := revisions.Data[len(revisions.Data)-1]
-	
+
 		fmt.Printf("\nOperation successful - Revision#: %v", r.Data.Id)
 		fmt.Printf("\n  Added   Lines	: %d  (%d words)", r.Data.Info.Added.Strings, r.Data.Info.Added.Words)
 		fmt.Printf("\n  Deleted Lines	: %d  (%d words)", r.Data.Info.Deleted.Strings, r.Data.Info.Deleted.Words)
 		fmt.Printf("\n  Updated Line	: %d  (%d words)", r.Data.Info.Updated.Strings, r.Data.Info.Updated.Words)
-		fmt.Print("\n")	
+		fmt.Print("\n")
 	}
 
 	if !nospinFlg {

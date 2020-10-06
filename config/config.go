@@ -23,10 +23,10 @@ type FileAccess struct {
 }
 
 type ProjectDef struct {
-	Name		string 	`json:"name"`
+	Name				string 	`json:"name"`
 	Apiurl      string 	`json:"apiurl"`
 	ProjectId   int    	`json:"projectId"`
-	AuthToken   string 	`json:"authToken"`		
+	AuthToken   string 	`json:"authToken"`
 }
 
 type FileDef struct {
@@ -37,8 +37,8 @@ type FileDef struct {
 }
 
 type configFile struct {
-	Projects	[]ProjectDef	`json:"projects"`
-	Files	 	[]FileDef		`json:"files"`
+	Projects		[]ProjectDef	`json:"projects"`
+	Files	 			[]FileDef		`json:"files"`
 }
 
 
@@ -89,7 +89,7 @@ func New(jsonfilename string) (*Config, error) {
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("package config - Issue unmarshalling json %v", err))
 	}
-	
+
 	// Move project details into a map to simplify access to data
 	prj = make(map[string]ProjectDef)
 	for _, v := range c.conf.Projects {
@@ -98,13 +98,13 @@ func New(jsonfilename string) (*Config, error) {
 	if len(prj) <= 0 {
 		return nil, errors.New(fmt.Sprintf("package config - at least one project needs to be defined"))
 	}
-	
+
 	return c, nil
 }
 
 // GetDetails()
 //	Get the project details corresponding to a key (e.g. filename)
-//  
+//
 //
 // 	Parameter:
 //		- Unique key
@@ -112,16 +112,16 @@ func New(jsonfilename string) (*Config, error) {
 //		- err != null if fails to find a corresponding value
 //   	- Array of FileAccess. Multiple lines if there are multiple destinations.
 //
-func (c *Config) GetValue(key string) ([]FileAccess list, error err) {
+func (c *Config) GetValue(key string) (list []FileAccess, err error) {
 
 	for _, f := range c.conf.Files {
 		if f.Key == key { // found it
 			var r FileAccess
-			r.Apiurl		= prj[v.Name].Apiurl
-			r.ProjectId 	= prj[v.Name].ProjectId
-			r.AuthToken 	= prj[v.Name].AuthToken
-			r.Destination	= v.Destination
-			r.Extension		= v.Extension
+			r.Apiurl		= prj[f.ProjectName].Apiurl
+			r.ProjectId 	= prj[f.ProjectName].ProjectId
+			r.AuthToken 	= prj[f.ProjectName].AuthToken
+			r.Destination	= f.Destination
+			r.Extension		= f.Extension
 			if len(r.Extension) > 0 {
 				if r.Extension == "." { // Equivalent to no extension
 					r.Extension = ""
