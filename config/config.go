@@ -22,19 +22,30 @@ type FileAccess struct {
 	Extension   string
 }
 
-type configFile struct {
-	Data []struct {
-		Apiurl      string `json:"apiurl"`
-		Key         string `json:"key"`
-		ProjectId   int    `json:"projectId"`
-		AuthToken   string `json:"authToken"`
-		Destination string `json:"destination"`
-		Extension   string `json:"extension"`
-	} `json:"data"`
+type ProjectDef struct {
+	Name		string 	`json:"name"`
+	Apiurl      string 	`json:"apiurl"`
+	ProjectId   int    	`json:"projectId"`
+	AuthToken   string 	`json:"authToken"`		
 }
 
-// config stored in memeory
-var c Config
+type FileDef struct {
+	Key         string 	`json:"key"`	// e.g. a path + filename
+	ProjectName string 	`json:"project_name"`
+	Destination string 	`json:"destination"`
+	Extension   string 	`json:"extension"`
+}
+
+type configFile struct {
+	Projects	[]ProjectDef	`json:"projects"`
+	Files	 	[]FileDef		`json:"files"`
+}
+
+
+var c 	Config					// config stored in memeory
+var prj map[string]ProjectDef	// map to simplify access to project details
+
+
 
 // New()
 // Create a new instance.
@@ -43,7 +54,7 @@ var c Config
 //		- path and name of the file
 //	Returns:
 //		- err != null in case of error
-//    - pointer to instance
+//		- pointer to instance
 func New(jsonfilename string) (*Config, error) {
 	// var err error
 
@@ -78,27 +89,39 @@ func New(jsonfilename string) (*Config, error) {
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("package config - Issue unmarshalling json %v", err))
 	}
-
+	
+	// Move project details into a map to simplify access to data
+	prj = make(map[string]ProjectDef)
+	for _, v := range c.conf.Projects {
+		prj[v.Name] = v
+	}
+	if len(prj) <= 0 {
+		return nil, errors.New(fmt.Sprintf("package config - at least one project needs to be defined"))
+	}
+	
 	return c, nil
 }
 
 // GetDetails()
-//		To get the project details corresponding to a filename
+//	Get the project details corresponding to a key (e.g. filename)
+//  
 //
 // 	Parameter:
 //		- Unique key
 //	Returns:
 //		- err != null if fails to find a corresponding value
-//    - Value
-func (c *Config) GetValue(key string) (FileAccess, error) {
-	for _, v := range c.conf.Data {
-		if v.Key == key { // found it
+//   	- Array of FileAccess. Multiple lines if there are multiple destinations.
+//
+func (c *Config) GetValue(key string) ([]FileAccess list, error err) {
+
+	for _, f := range c.conf.Files {
+		if f.Key == key { // found it
 			var r FileAccess
-			r.Apiurl = v.Apiurl
-			r.ProjectId = v.ProjectId
-			r.AuthToken = v.AuthToken
-			r.Destination = v.Destination
-			r.Extension = v.Extension
+			r.Apiurl		= prj[v.Name].Apiurl
+			r.ProjectId 	= prj[v.Name].ProjectId
+			r.AuthToken 	= prj[v.Name].AuthToken
+			r.Destination	= v.Destination
+			r.Extension		= v.Extension
 			if len(r.Extension) > 0 {
 				if r.Extension == "." { // Equivalent to no extension
 					r.Extension = ""
@@ -108,10 +131,13 @@ func (c *Config) GetValue(key string) (FileAccess, error) {
 					}
 				}
 			}
-			return r, nil
+			list = append(list,r)
 		}
 	}
-	return FileAccess{}, errors.New(fmt.Sprintf("package config - Can't find a project for %s", key))
+	if len(list) > 0 {
+		return list, nil
+	}
+	return list, errors.New(fmt.Sprintf("package config - Can't find a project for %s", key))
 }
 
 // fileExists checks if a file exists and is not a directory before we

@@ -2,7 +2,10 @@ package main
 
 //	F.Demurger 2020-03
 //
-//	Update a Crowdin source file. All existing approval for the updated translations are removed.
+//	Update a Crowdin source file. Translations for the updated strings are removed.
+//
+//	When the json conf file is used, multiple destinations are supported.
+//	A specific source can be dispatched in several Crowdin projects.
 //
 //	crowdinupdate [options] <access token> <project number> <crowdin file path/name> <local file path/name>
 //	or
@@ -10,6 +13,7 @@ package main
 //
 //		Option -v version
 //		Option -p <proxy url> when proxy needed.
+//		Option -u <Crowdin url>
 //		Option -t <timeout in second>. Defines a timeout for each communication (r/w) with the server.
 //						This doesn't provide an overall timeout!
 //		Option -n no spinning thingy while we wait for the file to update (for unattended usage).
@@ -22,35 +26,50 @@ package main
 //
 //		config.json
 //
-//			"data": [
+//			"projects": [
 //			{
-//				"key": "//project2/project2_english.txt",
+//			"name": "crowdin project 1"
 //     		"projectId": 5,
 //    		"authToken": "555555555555555",
-//    		"destination": "/folder blah/subfolder/afile_english.vdf",
-//				"extension": ".vdf"
 //    		},
-//		    {
-//		     	"key": "//Another_project/another_file.txt",
-//					....
+//			{
+//			"name": "crowdin project 2"
+//     		"projectId": 7,
+//    		"authToken": "777777777777777",
+//    		}
+//			],
+//
+//			"files": [
+//			{
+//			"key": "//project1/project1_english.txt",
+//			"project_name": "crowdin project 1",
+//    		"destination": "/folder blah/subfolder/afile_english.vdf",
+//			"extension": ".vdf"
+//			},
+//			{
+//			"key": "//project2/project2_english.json",
+//			"project_name": "crowdin project 2",
+//    		"destination": "/folder blah/subfolder/anotherfile_english.json"
 //			}
 //			]
 //
-//			"key" 				Needs to be unique. E.g. a perforce path and filename
+//		Fields:
+//			"key" 			Needs to be unique. E.g. a perforce path and filename
 //			"projectId"		Crowdin project Id
 //			"authToken"		Secret authorization token to access the project
 //			"destination"	Destination in Crowdin project where the file needs to go.
-//			"extension"		Extension expected by Crowdin depending on the file type (e.g. vdf). The source file will be renamed with this extension unless that one is empty.
+//			"extension"		Extension expected by Crowdin depending on the file type (e.g. vdf).
+// 							The source file will be renamed with this extension unless that one is empty.
 //
 //
 //	cross compilation Win AMD64 on linux:  env GOOS=windows GOARCH=amd64 go build crowdinupdate.go
 
 import (
+	"crowdinUpdate/config"
 	"flag"
 	"fmt"
-	"io"
 	"github.com/fabdem/go-crowdinv2"
-	"crowdinUpdate/config"
+	"io"
 	//"go-crowdinv2"
 	"os"
 	"path/filepath"
@@ -61,6 +80,8 @@ import (
 
 var idx int = 0
 var finishChan chan struct{}
+
+const defaultApiURL = "https://crowdin.com/api/v2/"
 
 // Spinning wheel
 func animation(c *crowdin.Crowdin) {
@@ -97,7 +118,7 @@ func main() {
 	const usageProxy = "Use a proxy - followed with url"
 	const usageTimeout = "Set the build timeout in seconds (default 50s)."
 	const usageNospin = "No spinning |"
-	const usageUrl = "Specify the API URL"
+	const usageUrl = "Specify the API URL (default: " + defaultApiURL
 	const usageDebug = "Store Debug info in a file followed with path and filename"
 	const usageConf = "Config in json file"
 	const usageUpdate = "Define the type of update. Has to be either:\n   - clear_translations_and_approvals\n   - keep_translations\n   - keep_translations_and_approvals\n"
@@ -112,7 +133,7 @@ func main() {
 	checkFlags.StringVar(&proxy, "p", "", usageProxy+" (shorthand)")
 	checkFlags.BoolVar(&nospinFlg, "nospin", false, usageNospin)
 	checkFlags.BoolVar(&nospinFlg, "n", false, usageNospin+" (shorthand)")
-	checkFlags.StringVar(&uRL, "url", "", usageNospin)
+	checkFlags.StringVar(&uRL, "url", "", usageUrl)
 	checkFlags.StringVar(&uRL, "u", "", usageUrl+" (shorthand)")
 	checkFlags.StringVar(&debug, "debug", "", usageDebug)
 	checkFlags.StringVar(&debug, "d", "", usageDebug+" (shorthand)")
@@ -153,29 +174,64 @@ func main() {
 		os.Exit(1)
 	}
 	f.Close()
+	
+	var list []FileAccess // Build a list of files to process, either from json or from command line params
 
-	if conf != "" { // A json file is provided to define the Crowdin projects info
+	if conf != "" { // A json file is provided
 		p4File := os.Args[index-2]
 		json, err := config.New(conf)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - can't find json file: %s %v\n", conf, err)
 			os.Exit(1)
 		}
-		res, err := json.GetValue(p4File)
+		list, err = json.GetValue(p4File)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - json formatting issue: %v\n", err)
 			os.Exit(1)
 		}
 		// fmt.Printf("\ndebug  conf file read: %s\n", conf)
 
-		uRL = res.Apiurl
-		projectId = res.ProjectId
-		token = res.AuthToken
-		crowdinFile = res.Destination
-		ext = res.Extension
+	} else { // No json file, get params from the cmd line
+		tk := os.Args[index-4]
+		id, err := strconv.Atoi(os.Args[index-3])
+		if err != nil {
+			fmt.Printf("\ncrowdinupdate() - ProjectId needs to be a number %s", err)
+			os.Exit(1)
+		}
 
+		// Path and name of file to update in Crowdin. Stored in a slice.
+		cf := os.Args[index-2]
+		
+		if len(uRL) <= 0 {uRL = defaultApiURL)}
+		var f FileAccess {ProjectId:id, AuthToken:tk, Apiurl: uRL, Destination: cf}
+		list = append(list, f)
+	}
+
+
+	if !nospinFlg { // Check if we need to spin the '|'
+		finishChan = make(chan struct{})
+		go animation(api)
+	}
+
+	var logFile *File
+	if len(debug) > 0 { // append or create debug
+		logFile, err := os.OpenFile(debug, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Printf("\ncrowdinupdate() - Can't create debug file %s %v", debug, err)
+			os.Exit(1)
+		}
+	}
+
+	// Process all destinations
+	for _, l := range list {
+		uRL 		= l.Apiurl
+		projectId 	= l.ProjectId
+		token 		= l.AuthToken
+		crowdinFile = l.Destination
+		ext 		= l.Extension
+	
 		newName := changeNameExt(localFile, ext) // Change the filename extension if needed
-
+	
 		if newName != localFile { // If file names differ then create a copy with newname
 			// fmt.Printf("Copying %s to %s", localFile, newName)
 			if copyFile(localFile, newName) != nil {
@@ -183,65 +239,42 @@ func main() {
 				os.Exit(1)
 			}
 		}
-
 		localFile = newName
 
-	} else { // No json file, access to Crowdin projects is defined on the cmd line
-		// Parse the command parameters
-		token = os.Args[index-4]
-		projectId, err = strconv.Atoi(os.Args[index-3])
+		// Create a connection to Crowdin
+		crowdin.SetTimeouts(5, timeoutsec) // Not ideal: forced to use  the r/w timeout to enforce the application timeout :(
+		api, err := crowdin.New(token, projectId, uRL, proxy)
 		if err != nil {
-			fmt.Printf("\ncrowdinupdate() - ProjectId needs to be a number %s", err)
+			fmt.Printf("\ncrowdinupdate() - connection problem %s\n", err)
 			os.Exit(1)
 		}
+	
+		if len(debug) > 0 { // append or create debug
+			api.SetDebug(true, logFile)
+		}
 
-		// Path and name of file to update in Crowdin. Stored in a slice.
-		crowdinFile = os.Args[index-2]
-	}
-
-	// Create a connection to Crowdin
-	crowdin.SetTimeouts(5, timeoutsec) // Not ideal: forced to use  the r/w timeout to enforce the application timeout :(
-	api, err := crowdin.New(token, projectId, uRL, proxy)
-	if err != nil {
-		fmt.Printf("\ncrowdinupdate() - connection problem %s\n", err)
-		os.Exit(1)
-	}
-
-	if len(debug) > 0 {
-		logFile, err := os.Create(debug)
+		// Update file in Crowdin project
+		fileId, err := api.Update(crowdinFile, localFile, updateMode)
 		if err != nil {
-			fmt.Printf("\ncrowdinupdate() - Can't create debug file %s %v", debug, err)
+			fmt.Printf("\ncrowdinupdate() - update error %s\n\n", err)
 			os.Exit(1)
 		}
-		api.SetDebug(true, logFile)
+	
+		// Get revision details
+		revisions, err := api.ListFileRevisions(&crowdin.ListFileRevisionsOptions{Limit: 500}, fileId)
+		if err != nil {
+			fmt.Printf("\ncrowdinupdate() - Read revision details error %s\n\n", err)
+			os.Exit(1)
+		}
+	
+		r := revisions.Data[len(revisions.Data)-1]
+	
+		fmt.Printf("\nOperation successful - Revision#: %v", r.Data.Id)
+		fmt.Printf("\n  Added   Lines	: %d  (%d words)", r.Data.Info.Added.Strings, r.Data.Info.Added.Words)
+		fmt.Printf("\n  Deleted Lines	: %d  (%d words)", r.Data.Info.Deleted.Strings, r.Data.Info.Deleted.Words)
+		fmt.Printf("\n  Updated Line	: %d  (%d words)", r.Data.Info.Updated.Strings, r.Data.Info.Updated.Words)
+		fmt.Print("\n")	
 	}
-
-	if !nospinFlg { // Check if we need to spin the '|'
-		finishChan = make(chan struct{})
-		go animation(api)
-	}
-
-	// Update file in Crowdin project
-	fileId, err := api.Update(crowdinFile, localFile, updateMode)
-	if err != nil {
-		fmt.Printf("\ncrowdinupdate() - update error %s\n\n", err)
-		os.Exit(1)
-	}
-
-	// Get revision details
-	revisions, err := api.ListFileRevisions(&crowdin.ListFileRevisionsOptions{Limit: 500}, fileId)
-	if err != nil {
-		fmt.Printf("\ncrowdinupdate() - Read revision details error %s\n\n", err)
-		os.Exit(1)
-	}
-
-	r := revisions.Data[len(revisions.Data)-1]
-
-	fmt.Printf("\nOperation successful - Revision#: %v", r.Data.Id)
-	fmt.Printf("\n  Added   Lines	: %d  (%d words)", r.Data.Info.Added.Strings, r.Data.Info.Added.Words)
-	fmt.Printf("\n  Deleted Lines	: %d  (%d words)", r.Data.Info.Deleted.Strings, r.Data.Info.Deleted.Words)
-	fmt.Printf("\n  Updated Line	: %d  (%d words)", r.Data.Info.Updated.Strings, r.Data.Info.Updated.Words)
-	fmt.Print("\n")
 
 	if !nospinFlg {
 		close(finishChan) // Stop animation
