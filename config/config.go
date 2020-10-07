@@ -38,7 +38,7 @@ type FileDef struct {
 
 type configFile struct {
 	Projects		[]ProjectDef	`json:"projects"`
-	Files	 			[]FileDef		`json:"files"`
+	Files	 			[]FileDef			`json:"files"`
 }
 
 
@@ -83,9 +83,9 @@ func New(jsonfilename string) (*Config, error) {
 	// fmt.Printf("file read: %s", buffer)
 	// fmt.Printf("struct: %v", c.conf)
 
-	// Unmarshal buffer which contains our
-	// jsonFile's content into the structure
+	// Unmarshal json buffer in struct
 	err = json.Unmarshal(buffer, &c.conf)
+	// fmt.Printf("struct: %v", c.conf)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("package config - Issue unmarshalling json %v", err))
 	}

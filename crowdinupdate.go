@@ -17,9 +17,10 @@ package main
 //		Option -t <timeout in second>. Defines a timeout for each communication (r/w) with the server.
 //						This doesn't provide an overall timeout!
 //		Option -n no spinning thingy while we wait for the file to update (for unattended usage).
+//		Option -d <debug file>
 //
 //		When Option -c <json config file> is used, project#, key and Crowdin path are provided in the json file
-//								and depending on a key (e.g. a Perforce path).
+//		depending on a key (e.g. a Perforce path).
 //
 //    Default timeout set in lib: 40s.
 //    Returns 1 if an error occurs
@@ -180,7 +181,7 @@ func main() {
 		p4File := os.Args[index-2]
 		json, err := config.New(conf)
 		if err != nil {
-			fmt.Printf("\ncrowdinupdate() - can't find json file: %s %v\n", conf, err)
+			fmt.Printf("\ncrowdinupdate() - issue with json file: %s %v\n", conf, err)
 			os.Exit(1)
 		}
 		list, err = json.GetValue(p4File)
@@ -222,11 +223,11 @@ func main() {
 
 	// Process all destinations
 	for _, l := range list {
-		uRL 		= l.Apiurl
+		uRL 				= l.Apiurl
 		projectId 	= l.ProjectId
-		token 		= l.AuthToken
+		token 			= l.AuthToken
 		crowdinFile = l.Destination
-		ext 		= l.Extension
+		ext 				= l.Extension
 
 		newName := changeNameExt(localFile, ext) // Change the filename extension if needed
 
@@ -267,7 +268,7 @@ func main() {
 
 		r := revisions.Data[len(revisions.Data)-1]
 
-		fmt.Printf("\nOperation successful - Revision#: %v", r.Data.Id)
+		fmt.Printf("\nOperation successful - %s - Revision#: %v",l.Destination, r.Data.Id)
 		fmt.Printf("\n  Added   Lines	: %d  (%d words)", r.Data.Info.Added.Strings, r.Data.Info.Added.Words)
 		fmt.Printf("\n  Deleted Lines	: %d  (%d words)", r.Data.Info.Deleted.Strings, r.Data.Info.Deleted.Words)
 		fmt.Printf("\n  Updated Line	: %d  (%d words)", r.Data.Info.Updated.Strings, r.Data.Info.Updated.Words)
