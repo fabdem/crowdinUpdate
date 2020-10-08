@@ -70,8 +70,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fabdem/go-crowdinv2"
+	// "go-crowdinv2"
 	"io"
-	//"go-crowdinv2"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -153,7 +153,7 @@ func main() {
 	checkFlags.Parse(os.Args[1:])
 
 	if versionFlg {
-		fmt.Printf("Version %s\n", "2020-03  v1.2.4")
+		fmt.Printf("Version %s\n", "2020-10  v2.0.0")
 		os.Exit(0)
 	}
 
@@ -202,8 +202,10 @@ func main() {
 		// Path and name of file to update in Crowdin. Stored in a slice.
 		cf := os.Args[index-2]
 
-		if len(uRL) <= 0 {uRL = defaultApiURL}
-		f := config.FileAccess{ProjectId:id, AuthToken:tk, Apiurl: uRL, Destination: cf}
+		if len(uRL) <= 0 {
+			uRL = defaultApiURL
+		}
+		f := config.FileAccess{ProjectId: id, AuthToken: tk, Apiurl: uRL, Destination: cf}
 		list = append(list, f)
 	}
 
@@ -223,11 +225,11 @@ func main() {
 
 	// Process all destinations
 	for _, l := range list {
-		uRL 				= l.Apiurl
-		projectId 	= l.ProjectId
-		token 			= l.AuthToken
+		uRL = l.Apiurl
+		projectId = l.ProjectId
+		token = l.AuthToken
 		crowdinFile = l.Destination
-		ext 				= l.Extension
+		ext = l.Extension
 
 		newName := changeNameExt(localFile, ext) // Change the filename extension if needed
 
@@ -253,25 +255,25 @@ func main() {
 		}
 
 		// Update file in Crowdin project
-		fileId, err := api.Update(crowdinFile, localFile, updateMode)
+		fileId, revId, err := api.Update(crowdinFile, localFile, updateMode)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - update error %s\n\n", err)
 			os.Exit(1)
 		}
 
 		// Get revision details
-		revisions, err := api.ListFileRevisions(&crowdin.ListFileRevisionsOptions{Limit: 500}, fileId)
+		revDetails, err := api.GetFileRevision(fileId, revId)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - Read revision details error %s\n\n", err)
 			os.Exit(1)
 		}
 
-		r := revisions.Data[len(revisions.Data)-1]
+		r := revDetails.Data
 
-		fmt.Printf("\nOperation successful - %s - Revision#: %v",l.Destination, r.Data.Id)
-		fmt.Printf("\n  Added   Lines	: %d  (%d words)", r.Data.Info.Added.Strings, r.Data.Info.Added.Words)
-		fmt.Printf("\n  Deleted Lines	: %d  (%d words)", r.Data.Info.Deleted.Strings, r.Data.Info.Deleted.Words)
-		fmt.Printf("\n  Updated Line	: %d  (%d words)", r.Data.Info.Updated.Strings, r.Data.Info.Updated.Words)
+		fmt.Printf("\nOperation successful - %s - Revision#: %v", l.Destination, r.Id)
+		fmt.Printf("\n  Added   Lines	: %d  (%d words)", r.Info.Added.Strings, r.Info.Added.Words)
+		fmt.Printf("\n  Deleted Lines	: %d  (%d words)", r.Info.Deleted.Strings, r.Info.Deleted.Words)
+		fmt.Printf("\n  Updated Line	: %d  (%d words)", r.Info.Updated.Strings, r.Info.Updated.Words)
 		fmt.Print("\n")
 	}
 
