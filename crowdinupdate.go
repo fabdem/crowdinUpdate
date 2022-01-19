@@ -153,7 +153,7 @@ func main() {
 	checkFlags.Parse(os.Args[1:])
 
 	if versionFlg {
-		fmt.Printf("Version %s\n", "2020-10  v2.0.0")
+		fmt.Printf("Version %s\n", "2022-01  v2.0.1")
 		os.Exit(0)
 	}
 
@@ -243,7 +243,7 @@ func main() {
 		localFile = newName
 
 		// Create a connection to Crowdin
-		crowdin.SetTimeouts(5, timeoutsec) // Not ideal: forced to use  the r/w timeout to enforce the application timeout :(
+		crowdin.SetDefaultTimeouts(5, timeoutsec) // Not ideal: forced to use  the r/w timeout to enforce the application timeout :(
 		api, err := crowdin.New(token, projectId, uRL, proxy)
 		if err != nil {
 			fmt.Printf("\ncrowdinupdate() - connection problem %s\n", err)
